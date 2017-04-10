@@ -9,7 +9,10 @@ import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.*;
+import java.net.MalformedURLException;
 import java.util.List;
 import java.util.Properties;
 
@@ -68,9 +71,9 @@ public class PoEWhisperNotifierGUI implements WhisperSubscriber {
         System.out.println("MUTE=" + properties.getProperty(MUTED_KEY) + " - "
                 + Boolean.valueOf(properties.getProperty(MUTED_KEY)));
         tradeOnly = Boolean.valueOf(properties.getProperty(TRADE_ONLY_KEY));
-        System.out.println("MUTE=" + properties.getProperty(TRADE_ONLY_KEY) + " - "
+        System.out.println("TRADE=" + properties.getProperty(TRADE_ONLY_KEY) + " - "
                 + Boolean.valueOf(properties.getProperty(TRADE_ONLY_KEY)));
-        notifier = new PoEWhisperNotifierImpl(clientLog);
+        notifier = new PoEWhisperNotifierImpl(clientLog,tradeOnly);
         notifier.subscribe(this);
         System.out.println("constructor: " + filename);
         notifier.start();
@@ -252,6 +255,14 @@ public class PoEWhisperNotifierGUI implements WhisperSubscriber {
 
         txtWhisper.setText(text);
         txtWhisper.setCaretPosition(txtWhisper.getDocument().getLength());
+
+        try {
+            displayTray("PoE Whisper Notfier",text);
+        } catch (AWTException e) {
+            e.printStackTrace();
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
@@ -259,6 +270,37 @@ public class PoEWhisperNotifierGUI implements WhisperSubscriber {
         if (lblLastUpdate != null) {
             lblLastUpdate.setText(status);
             lblLastUpdate.setForeground(ColorStatus.getColor(colorStatus));
+        }
+    }
+
+    public void displayTray(String title, String message) throws AWTException, java.net.MalformedURLException {
+        //Obtain only one instance of the SystemTray object
+
+        if (SystemTray.isSupported()) {
+            SystemTray tray = SystemTray.getSystemTray();
+
+            //If the icon is a file
+            Image image = frmPoewhispernotifier.getToolkit().createImage("icon.png");
+            TrayIcon trayIcon = new TrayIcon(image, "PoE Whispers");
+            trayIcon.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    frmPoewhispernotifier.toFront();
+                    System.out.println("HAI");
+
+                    if (e.getButton() == MouseEvent.BUTTON1) {
+                    }
+                }
+            });
+            //Let the system resizes the image if needed
+            trayIcon.setImageAutoSize(true);
+            //Set tooltip text for the tray icon
+            trayIcon.setToolTip("PoE Whispers");
+
+            tray.add(trayIcon);
+            System.out.println("listeners=" + trayIcon.getMouseListeners().length);
+            trayIcon.displayMessage(title, message, TrayIcon.MessageType.INFO);
+
         }
     }
 }

@@ -2,9 +2,11 @@ package de.poe.notifier.util;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
 
 import com.sun.jna.Native;
 import com.sun.jna.platform.win32.User32;
@@ -138,8 +140,44 @@ public class Utility {
 	public static String returnWindowTitle(int length) throws Exception {
 		char[] buffer = new char[length * 2];
 		HWND hwnd = User32.INSTANCE.GetForegroundWindow();
+
 		User32.INSTANCE.GetWindowText(hwnd, buffer, length);
+		char[] className = new char[length*2];
+		User32.INSTANCE.GetClassName(hwnd,className,0);
 		return Native.toString(buffer);
 	}
 
+	// http://stackoverflow.com/a/19005828/3764804
+
+	/**
+	 * Checks whether a specific process can be found inside the windows task list.
+	 * @param processName
+	 * @return true if process is found, else false
+	 * @throws IOException
+	 * @throws InterruptedException
+	 */
+	public static boolean isProcessRunning(String processName) throws IOException, InterruptedException
+	{
+		ProcessBuilder processBuilder = new ProcessBuilder("tasklist.exe");
+		Process process = processBuilder.start();
+		String tasksList = toString(process.getInputStream());
+
+		return tasksList.contains(processName);
+	}
+
+	// http://stackoverflow.com/a/5445161/3764804
+
+	/**
+	 * Takes an inputstream and converts it's content to one string.
+	 * @param inputStream
+	 * @return string representation of the input stream
+	 */
+	private static String toString(InputStream inputStream)
+	{
+		Scanner scanner = new Scanner(inputStream, "UTF-8").useDelimiter("\\A");
+		String string = scanner.hasNext() ? scanner.next() : "";
+		scanner.close();
+
+		return string;
+	}
 }
