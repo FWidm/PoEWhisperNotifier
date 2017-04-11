@@ -4,8 +4,7 @@ import de.poe.notifier.core.interfaces.WhisperNotifier;
 import de.poe.notifier.core.interfaces.WhisperSubscriber;
 import de.poe.notifier.util.Utility;
 
-import java.awt.*;
-import java.io.*;
+import java.io.File;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -21,7 +20,6 @@ public class PoEWhisperNotifierImpl implements WhisperNotifier {
     private String lastLine = "";
     private List<String> whispers;
     private List<WhisperSubscriber> subscribers = new ArrayList<>();
-    private boolean playSounds = true;
     private boolean tradeOnly = true;
 
     // The timer for the executors
@@ -78,27 +76,6 @@ public class PoEWhisperNotifierImpl implements WhisperNotifier {
         return false;
     }
 
-    /**
-     * Wipes the currently specified log file.
-     *
-     * @return true if success or false if an error occured.
-     */
-    public boolean wipeLogs() {
-        try {
-            BufferedWriter out = new BufferedWriter(new PrintWriter(clientLog));
-            out.write("");
-            out.close();
-            return true;
-        } catch (FileNotFoundException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        } catch (IOException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
-        return false;
-    }
-
 
     /**
      * Cancel the existing task if it exists and is not cancelled or finished already.
@@ -137,8 +114,6 @@ public class PoEWhisperNotifierImpl implements WhisperNotifier {
                             prepareMessage(msg);
                             System.out.println(">> " + msg);
                             notifySubscribers(whispers);
-                            if (playSounds)
-                                Toolkit.getDefaultToolkit().beep();
                         }
                     } else {
                         lastLine = Utility.getLastLineFast(clientLog);
@@ -216,27 +191,9 @@ public class PoEWhisperNotifierImpl implements WhisperNotifier {
         }
     }
 
-    /**
-     * Set the boolean to either mute the notifications or play a sound.
-     *
-     * @param playSounds
-     */
-    public void setPlaySounds(boolean playSounds) {
-        this.playSounds = playSounds;
-    }
 
     public void setTradeOnly(boolean tradeOnly) {
         this.tradeOnly = tradeOnly;
     }
 
-    // public static void main(String[] args) {
-    // String filePath = "";
-    // if (args.length > 0) {
-    // filePath = args[0];
-    // System.out.println("Loading File: '" + filePath + "'");
-    // }
-    // File clientLog = new File(filePath);
-    // PoEWhisperNotifierImpl notifier = new PoEWhisperNotifierImpl(clientLog);
-    // notifier.start();
-    // }
 }

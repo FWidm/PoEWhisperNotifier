@@ -1,36 +1,31 @@
 package de.poe.notifier.gui;
 
 import de.poe.notifier.core.ColorStatus;
-import de.poe.notifier.core.PoEWhisperNotifierImpl;
+import de.poe.notifier.core.PoeWhisperController;
 import de.poe.notifier.core.interfaces.WhisperSubscriber;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
 import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.net.MalformedURLException;
 import java.util.List;
-import java.util.Properties;
 
 public class PoEWhisperNotifierGUI implements WhisperSubscriber {
-    private final String CLIENT_LOG_KEY = "Client Log Location";
-    private final String MUTED_KEY = "Muted";
-    private final String TRADE_ONLY_KEY = "Trade Only";
-    private final String STAY_ON_TOP_KEY = "Stay on Top";
+    private PoeWhisperController controller;
 
     private JFrame frmPoewhispernotifier;
 
-    private PoEWhisperNotifierImpl notifier;
-    private Properties properties;
     private JTextPane txtWhisper;
     private JLabel lblLastUpdate;
 
     private boolean alwaysOnTop = false;
-    private boolean tradeOnly = true;
-    private boolean playSounds = true;
+    private boolean tradeOnly = false;
+    private boolean playSounds = false;
+
+    private TrayIcon trayIcon;
+
 
     /**
      * Launch the application.
@@ -39,6 +34,8 @@ public class PoEWhisperNotifierGUI implements WhisperSubscriber {
         EventQueue.invokeLater(() -> {
             try {
                 PoEWhisperNotifierGUI window = new PoEWhisperNotifierGUI();
+                PoeWhisperController controller = new PoeWhisperController(window);
+                window.setPoEWhisperController(controller);
                 window.frmPoewhispernotifier.setVisible(true);
 
             } catch (Exception e) {
@@ -63,51 +60,21 @@ public class PoEWhisperNotifierGUI implements WhisperSubscriber {
             e1.printStackTrace();
         }
 
-
-        properties = new Properties();
-        try {
-            properties.load(new FileInputStream("poe.notifier.properties"));
-        } catch (IOException ignored) {
-        }
-        String filename = (String) properties.get(CLIENT_LOG_KEY);
-        File clientLog;
-        if (filename != null)
-            clientLog = new File(filename);
-        else {
-            clientLog = openLogSearch();
-        }
-        alwaysOnTop = Boolean.valueOf(properties.getProperty(STAY_ON_TOP_KEY));
-        System.out.println("TOP=" + properties.getProperty(STAY_ON_TOP_KEY) + " - "
-                + Boolean.valueOf(properties.getProperty(STAY_ON_TOP_KEY)));
-        playSounds = Boolean.valueOf(properties.getProperty(MUTED_KEY));
-        System.out.println("MUTE=" + properties.getProperty(MUTED_KEY) + " - "
-                + Boolean.valueOf(properties.getProperty(MUTED_KEY)));
-        tradeOnly = Boolean.valueOf(properties.getProperty(TRADE_ONLY_KEY));
-        System.out.println("TRADE=" + properties.getProperty(TRADE_ONLY_KEY) + " - "
-                + Boolean.valueOf(properties.getProperty(TRADE_ONLY_KEY)));
-        notifier = new PoEWhisperNotifierImpl(clientLog, tradeOnly);
-        notifier.subscribe(this);
-        System.out.println("PoEWhisperNotifierGUI constructor: " + filename);
-        notifier.start(2);
-
         initialize();
         //stestTray();
 
     }
 
-    private void testTray() {
-        SystemTray tray = SystemTray.getSystemTray();
-        Image image = frmPoewhispernotifier.getToolkit().createImage("res/icon.png");
-        TrayIcon trayIcon = new TrayIcon(image, "xasf");
+    public void setAlwaysOnTop(boolean alwaysOnTop) {
+        this.alwaysOnTop = alwaysOnTop;
+    }
 
-        trayIcon.addActionListener(event -> txtWhisper.setText("Tray clicked"));
-        try {
-            tray.add(trayIcon);
-        } catch (AWTException e) {
-            e.printStackTrace();
-        }
-        trayIcon.displayMessage("wfeq", "fewnjo", TrayIcon.MessageType.INFO);
+    public void setTradeOnly(boolean tradeOnly) {
+        this.tradeOnly = tradeOnly;
+    }
 
+    public void setPlaySounds(boolean playSounds) {
+        this.playSounds = playSounds;
     }
 
     /**
@@ -120,6 +87,13 @@ public class PoEWhisperNotifierGUI implements WhisperSubscriber {
         frmPoewhispernotifier.setBounds(100, 100, 340, 300);
         frmPoewhispernotifier.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         frmPoewhispernotifier.setAlwaysOnTop(alwaysOnTop);
+        frmPoewhispernotifier.addWindowListener(new WindowAdapter()
+        {
+            public void windowClosing(WindowEvent e)
+            {
+                removeTrayIcon();
+            }
+        });
         // set Icon
         java.net.URL imageUrl = PoEWhisperNotifierGUI.class.getResource("/Icon.png");
         System.out.println(imageUrl);
@@ -146,12 +120,10 @@ public class PoEWhisperNotifierGUI implements WhisperSubscriber {
         mnNewMenu.add(mntmSetLogfile);
         mntmSetLogfile.addActionListener(arg0 -> {
             File log = openLogSearch();
-            notifier.setLog(log);
+
+            controller.restartNotifier(log);
             System.out.println(log);
-            if (log != null) {
-                notifier.cancel();
-                notifier.start(2);
-            }
+
         });
         mnNewMenu.add(mntmClose);
 
@@ -162,13 +134,8 @@ public class PoEWhisperNotifierGUI implements WhisperSubscriber {
         JCheckBoxMenuItem chckbxmntmMuted = new JCheckBoxMenuItem("Play Sounds");
         chckbxmntmMuted.addActionListener(e -> {
             playSounds = !playSounds;
-            properties.setProperty(MUTED_KEY, "" + playSounds);
-            System.out.println("Saved mute=" + properties.getProperty(MUTED_KEY) + " - "
-                    + Boolean.valueOf(properties.getProperty(MUTED_KEY)));
-            storeProperties();
+            controller.playSounds(playSounds);
 
-            System.out.println(playSounds);
-            notifier.setPlaySounds(playSounds);
         });
         mnOptions.add(chckbxmntmMuted);
         chckbxmntmMuted.setSelected(playSounds);
@@ -182,11 +149,7 @@ public class PoEWhisperNotifierGUI implements WhisperSubscriber {
         chckbxmntmAlwaysOnTop.setSelected(alwaysOnTop);
         chckbxmntmAlwaysOnTop.addActionListener(e -> {
             alwaysOnTop = !alwaysOnTop;
-            properties.setProperty(STAY_ON_TOP_KEY, "" + playSounds);
-            System.out.println("Saved top=" + properties.getProperty(STAY_ON_TOP_KEY) + " - "
-                    + Boolean.valueOf(properties.getProperty(STAY_ON_TOP_KEY)));
-            System.out.println();
-            storeProperties();
+            controller.storeAlwaysOnTopProperty(alwaysOnTop);
 
             frmPoewhispernotifier.setAlwaysOnTop(alwaysOnTop);
         });
@@ -194,12 +157,7 @@ public class PoEWhisperNotifierGUI implements WhisperSubscriber {
         JCheckBoxMenuItem chckbxmntmTradeOnly = new JCheckBoxMenuItem("Trade only");
         chckbxmntmTradeOnly.addActionListener(e -> {
             tradeOnly = !tradeOnly;
-            properties.setProperty(TRADE_ONLY_KEY, "" + tradeOnly);
-            System.out.println("Saved trade=" + properties.getProperty(TRADE_ONLY_KEY) + " - "
-                    + Boolean.valueOf(properties.getProperty(TRADE_ONLY_KEY)));
-            storeProperties();
-
-            notifier.setTradeOnly(tradeOnly);
+            controller.setTradeOnlyProperty(tradeOnly);
         });
 
         chckbxmntmTradeOnly.setSelected(tradeOnly);
@@ -233,17 +191,61 @@ public class PoEWhisperNotifierGUI implements WhisperSubscriber {
         txtWhisper.setMargin(new Insets(3, 3, 3, 3));
         txtWhisper.setFont(new Font("Tahoma", Font.PLAIN, 13));
         scrollPane.setViewportView(txtWhisper);
+
+        addTrayIcon();
+    }
+
+    private void addTrayIcon() {
+        //If the icon is a file
+        Image image = frmPoewhispernotifier.getToolkit().createImage("res/icon.png");
+        System.out.println("Loading image... " + image.toString());
+        if (SystemTray.isSupported()) {
+            SystemTray tray = SystemTray.getSystemTray();
+
+
+            PopupMenu popup = new PopupMenu();
+
+            MenuItem item = new MenuItem("Close");
+            item.addActionListener(e -> {
+                tray.remove(trayIcon);
+                frmPoewhispernotifier.dispose();
+                System.exit(0);
+            });
+            popup.add(item);
+
+            trayIcon = new TrayIcon(image, "PoE Whispers", popup);
+            //Let the system resizes the image if needed
+            trayIcon.setImageAutoSize(true);
+            //Set tooltip text for the tray icon
+            trayIcon.setToolTip("PoE Whispers");
+
+            trayIcon.addActionListener(event -> {
+                frmPoewhispernotifier.toFront();
+            });
+            try {
+                tray.add(trayIcon);
+            } catch (AWTException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void removeTrayIcon() {
+        if (SystemTray.isSupported()) {
+            SystemTray tray = SystemTray.getSystemTray();
+            tray.remove(trayIcon);
+        }
     }
 
     private void pressResetButton() {
         int response = JOptionPane.showConfirmDialog(frmPoewhispernotifier,
                 "Are you sure you want to clear the log contents?", "Reset Log", JOptionPane.OK_CANCEL_OPTION);
         if (response == JOptionPane.OK_OPTION) {
-            System.out.println("Wipe Logs? " + notifier.wipeLogs());
+            System.out.println("Wipe Logs? " + controller.wipeLogs());
         }
     }
 
-    private File openLogSearch() {
+    public File openLogSearch() {
         JFileChooser chooser = new JFileChooser();
         chooser.setDialogTitle("Please select the client.log in /PoE/logs.");
         FileNameExtensionFilter filter = new FileNameExtensionFilter("Log file", "txt");
@@ -252,25 +254,13 @@ public class PoEWhisperNotifierGUI implements WhisperSubscriber {
         if (returnVal == JFileChooser.APPROVE_OPTION) {
             File clientLog = chooser.getSelectedFile();
             System.out.println("You chose to open this file: " + clientLog.getName() + " path=" + clientLog.getPath());
-            properties.setProperty(CLIENT_LOG_KEY, clientLog.getPath());
-            storeProperties();
+
+            controller.storeLogLocationProperty(clientLog.getPath());
             return clientLog;
         }
         return null;
     }
 
-    private void storeProperties() {
-        File file = new File("poe.notifier.properties");
-        FileOutputStream fileOut;
-        try {
-            fileOut = new FileOutputStream(file);
-            properties.store(fileOut, "PoE Whisper Notifier Properties");
-            System.out.println(properties);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-    }
 
     @Override
     public void receiveNotification(List<String> whispers) {
@@ -283,11 +273,11 @@ public class PoEWhisperNotifierGUI implements WhisperSubscriber {
         txtWhisper.setText(text);
         txtWhisper.setCaretPosition(txtWhisper.getDocument().getLength());
 
-        try {
-            displayTray("PoE Whisper Notfier", text);
-        } catch (AWTException | MalformedURLException e) {
-            e.printStackTrace();
-        }
+        if (playSounds)
+            Toolkit.getDefaultToolkit().beep();
+
+        trayIcon.displayMessage("PoE Whisper Notfier", text, TrayIcon.MessageType.INFO);
+
     }
 
     @Override
@@ -298,29 +288,7 @@ public class PoEWhisperNotifierGUI implements WhisperSubscriber {
         }
     }
 
-    private void displayTray(String title, String message) throws AWTException, java.net.MalformedURLException {
-        //Obtain only one instance of the SystemTray object
-
-        if (SystemTray.isSupported()) {
-            SystemTray tray = SystemTray.getSystemTray();
-
-            //If the icon is a file
-            Image image = frmPoewhispernotifier.getToolkit().createImage("res/icon.png");
-            TrayIcon trayIcon = new TrayIcon(image, "PoE Whispers");
-            trayIcon.addActionListener(event -> {
-                frmPoewhispernotifier.toFront();
-                txtWhisper.setText("Tray clicked");
-            });
-
-            //Let the system resizes the image if needed
-            trayIcon.setImageAutoSize(true);
-            //Set tooltip text for the tray icon
-            trayIcon.setToolTip("PoE Whispers");
-
-            tray.add(trayIcon);
-            System.out.println("listeners=" + trayIcon.getMouseListeners().length);
-            trayIcon.displayMessage(title, message, TrayIcon.MessageType.INFO);
-
-        }
+    public void setPoEWhisperController(PoeWhisperController poEWhisperController) {
+        this.controller = poEWhisperController;
     }
 }
