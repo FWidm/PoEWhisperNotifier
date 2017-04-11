@@ -1,4 +1,4 @@
-package de.poe.notifier.core;
+package de.poe.notifier.core.interfaces;
 
 public interface WhisperNotifier {
 	public void subscribe(WhisperSubscriber subscriber);

@@ -1,5 +1,7 @@
 package de.poe.notifier.core;
 
+import de.poe.notifier.core.interfaces.WhisperNotifier;
+import de.poe.notifier.core.interfaces.WhisperSubscriber;
 import de.poe.notifier.util.Utility;
 
 import java.awt.*;
@@ -11,6 +13,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 public class PoEWhisperNotifierImpl implements WhisperNotifier {
@@ -20,22 +23,23 @@ public class PoEWhisperNotifierImpl implements WhisperNotifier {
     private List<WhisperSubscriber> subscribers = new ArrayList<>();
     private boolean playSounds = true;
     private boolean tradeOnly = true;
-    // Check every second.
-    public final int TIMER_PERIOD = 1;
 
     // The timer for the executors
     private final ScheduledExecutorService timerExecutor = Executors.newSingleThreadScheduledExecutor();
     private String status = "";
-
+    ScheduledFuture<?> scheduledFuture;
 
     /**
-     * Starts the Timer with a period that is given from the Runnable we use.
+     * Starts the runnable inside a timerExecutor.
+     *
+     * @param pollRateInSeconds how often do you want to poll - 1 = every 1s
      */
-    public void start() {
+    public void start(int pollRateInSeconds) {
+        if (clientLog != null) {
+            scheduledFuture = timerExecutor.scheduleAtFixedRate(new WhisperRunnable(), 0, pollRateInSeconds, TimeUnit.SECONDS);
+            System.out.println("started future=" + scheduledFuture);
 
-        if (clientLog != null)
-            timerExecutor.scheduleAtFixedRate(new WhisperRunnable(), 0, TIMER_PERIOD, TimeUnit.SECONDS);
-        else {
+        } else {
             status = "Client log not found!";
             updateStatus(ColorStatus.ERROR);
         }
@@ -54,7 +58,7 @@ public class PoEWhisperNotifierImpl implements WhisperNotifier {
         if (this.clientLog == null)
             return;
         lastLine = Utility.getLastLineFast(clientLog);
-        this.tradeOnly=tradeOnly;
+        this.tradeOnly = tradeOnly;
     }
 
     /**
@@ -77,7 +81,7 @@ public class PoEWhisperNotifierImpl implements WhisperNotifier {
     /**
      * Wipes the currently specified log file.
      *
-     * @return
+     * @return true if success or false if an error occured.
      */
     public boolean wipeLogs() {
         try {
@@ -95,6 +99,23 @@ public class PoEWhisperNotifierImpl implements WhisperNotifier {
         return false;
     }
 
+
+    /**
+     * Cancel the existing task if it exists and is not cancelled or finished already.
+     */
+    public void cancel() {
+        System.out.println("trying to cancel future=" + scheduledFuture);
+        if (scheduledFuture == null)
+            return;
+
+        if (!scheduledFuture.isCancelled() || !scheduledFuture.isDone()) {
+            scheduledFuture.cancel(true);
+            System.out.println("cancelled future=" + scheduledFuture);
+
+        }
+
+    }
+
     /**
      * This runnable is run within a timer to update the last message, whisperes
      * received and the status of the program.
@@ -110,7 +131,7 @@ public class PoEWhisperNotifierImpl implements WhisperNotifier {
                     if (!Utility.returnWindowTitle(100).contains("Path of Exile")) {
                         status = "PoE in Background, running!";
                         updateStatus(ColorStatus.SUCCESS);
-                        if (!line.equals(lastLine) && isTradeMessage(line) && line.contains("@")) {
+                        if (!line.equals(lastLine) && isTradeMessage(line) && line.contains("@") && line.toUpperCase().contains("FROM")) {
                             lastLine = line;
                             String msg = line.split("@")[1];
                             prepareMessage(msg);
@@ -124,11 +145,11 @@ public class PoEWhisperNotifierImpl implements WhisperNotifier {
                         status = "PoE in Foreground, do not notify!";
                         updateStatus(ColorStatus.DEFAULT);
                     }
-                }
-                else {
-                    status="PoE not running";
+                } else {
+                    status = "PoE not running";
                     updateStatus(ColorStatus.ERROR);
                 }
+                System.out.println("runnable=" + String.valueOf(this));
 
             } catch (Exception e) {
                 // TODO Auto-generated catch block
@@ -144,7 +165,7 @@ public class PoEWhisperNotifierImpl implements WhisperNotifier {
      * @param clientLog
      */
     public void setLog(File clientLog) {
-        lastLine = Utility.getLastLineFast(clientLog);
+        //lastLine = Utility.getLastLineFast(clientLog);
         this.clientLog = clientLog;
     }
 

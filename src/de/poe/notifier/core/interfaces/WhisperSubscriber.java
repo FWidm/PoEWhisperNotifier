@@ -1,4 +1,6 @@
-package de.poe.notifier.core;
+package de.poe.notifier.core.interfaces;
+
+import de.poe.notifier.core.ColorStatus;
 
 import java.util.List;
 
